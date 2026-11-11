@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Realidade diminuída</title>
+<style>[hidden]{display:none!important}body{margin:0;background:#f4efec;color:#251f21;font:16px/1.5 system-ui}main{max-width:800px;padding:24px;margin:auto}h1{font:36px Georgia}button,label,input{font:inherit}button,.upload{padding:12px;border:1px solid #aaa;background:white;border-radius:6px;cursor:pointer}button:focus-visible,input:focus-visible{outline:3px solid teal}button[aria-pressed=true]{background:#c6ded4}canvas{display:block;width:100%;height:auto;background:#111;border-radius:12px;max-height:65vh;object-fit:contain}.row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}input[type=range]{width:100%;min-height:44px}video,#tiny{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}#error{color:#a00}small{display:block;color:#585254}.upload{min-width:0;max-width:100%;box-sizing:border-box}.upload input{max-width:100%;box-sizing:border-box}</style>
+<main><h1>Realidade diminuída</h1><p>A imagem nasce e morre. Câmera, JPEG real e lampejos de 160 milissegundos.</p><p>Esta experiência faz a imagem piscar, no máximo duas vezes por segundo. Se você tem sensibilidade a imagens intermitentes, não ligue a câmera.</p><p>O efeito roda no aparelho. O código não envia nem grava imagens. A câmera só liga quando você pede.</p><div class="row"><button id="start">Ligar a câmera</button><button id="switch">Trocar câmera</button><button id="stop">Desligar</button></div><p id="error" role="status"></p><video id="video" playsinline muted></video><canvas id="tiny"></canvas><canvas id="out" width="640" height="480" aria-label="Imagem pixelada"></canvas><div class="row"><button id="circulate">Recompressão / circulação</button><button id="child">Rabisco infantil colorido</button><button id="scribble" aria-pressed="false">Rabiscada a lápis</button><button id="pixels" aria-pressed="true">Pixelada</button></div><section id="circulation-controls" hidden><p>Recompressão JPEG real: cada geração codifica e decodifica a anterior com qualidade fixa no encoder do navegador. Cada ajuste recomeça da fonte, reduzida a até 720 px. O fundo transparente vira branco. A perda pode estabilizar, sem piorar a cada passagem. Os cinco controles extras são efeitos artificiais, depois do JPEG, e começam zerados. Na câmera, cada nova captura passa pela sequência JPEG completa. Uma captura por vez, sem fila. A resolução (80 a 640 px no lado maior) e os intervalos se ajustam ao tempo medido, com pausa mínima de 500 ms entre sequências. Pode parecer uma sequência de lampejos, não vídeo fluido. Cada resultado aparece por 160 ms e é apagado; não há arquivo ou histórico pelo protótipo. Fotos de teste não são apagadas automaticamente. Não é possível impedir capturas de tela feitas pelo aparelho. O desempenho e a compatibilidade ainda precisam ser testados em celulares reais.</p><label>Qualidade JPEG: <output id="value-quality">20</output>%<input id="loss-quality" type="range" min="1" max="100" value="20"></label><p id="jpeg-status" role="status"></p><label>Gerações JPEG reais: <output id="value-generations">8</output><input id="loss-generations" type="range" min="0" max="30" value="8"></label><label>Blocos adicionados: <output id="value-blocks">0</output><input id="loss-blocks" type="range" min="0" max="100" value="0"></label><label>Vazamento de cor adicionado: <output id="value-chroma">0</output><input id="loss-chroma" type="range" min="0" max="100" value="0"></label><label>Desfoque adicionado: <output id="value-blur">0</output><input id="loss-blur" type="range" min="0" max="100" value="0"></label><label>Ruído adicionado: <output id="value-noise">0</output><input id="loss-noise" type="range" min="0" max="100" value="0"></label><label>Pixelação adicional: <output id="value-pixels">0</output><input id="loss-pixels" type="range" min="0" max="100" value="0"></label><button id="reset-loss">Zerar perdas</button></section><label>Desproporção<input id="distort" type="range" min="2" max="64" value="36"></label><label>Soltura do rabisco<input id="rough" type="range" min="2" max="64" value="32"></label><label>Tamanho do pixel: <output id="size">16</output><input id="pixel" type="range" min="2" max="64" value="16"></label><div class="row" id="palettes"><button data-p="cor" aria-pressed="true">Cor</button><button data-p="pb">Preto e branco</button><button data-p="verde">Verde terminal</button><button data-p="oito">Poucas cores</button></div><div class="row"><label class="upload">Escolher foto <input type="file" accept="image/*" id="photo"></label><button id="save">Abrir imagem para salvar</button></div><small>Protótipo ainda não validado na maioria dos celulares. Reduz a resolução e espaça as capturas quando o aparelho demora. Ao sair da página, desliga a câmera e apaga a imagem. Para a câmera funcionar no celular, publique este arquivo em uma hospedagem HTTPS como página principal, com permissão de câmera. Não use uma incorporação que bloqueie a câmera. A câmera ainda precisa ser testada no aparelho final. Sem bibliotecas, fontes remotas, rastreadores ou serviços externos.</small></main>
+<script>
+'use strict';
+// Stylized simulation of circulation loss, not a JPEG codec or a count of real resaves.
+function drawAddedArtifacts(source, canvas, options) {
+ const {generations=0,blocks=0,chroma=0,blur=0,noise=0,pixels=0}=options;
+ const w=canvas.width,h=canvas.height,ctx=canvas.getContext('2d');
+ const work=document.createElement('canvas');work.width=w;work.height=h;
+ const wc=work.getContext('2d',{willReadFrequently:true});wc.drawImage(source,0,0,w,h);
+ const g=generations/30;
+ // Each extra simulated generation loses spatial detail and tonal precision.
+ const factor=1+pixels*.2+g*5;
+ const small=document.createElement('canvas');small.width=Math.max(2,Math.round(w/factor));small.height=Math.max(2,Math.round(h/factor));
+ const sc=small.getContext('2d');sc.drawImage(work,0,0,small.width,small.height);
+ wc.imageSmoothingEnabled=pixels===0;wc.clearRect(0,0,w,h);wc.drawImage(small,0,0,w,h);
+ let image=wc.getImageData(0,0,w,h),d=image.data;
+ const blockStrength=Math.min(1,blocks/100+g*.35),smear=Math.min(1,chroma/100+g*.3);
+ const chromaStep=Math.max(1,Math.round(1+smear*26));
+ const blockStep=8;let seed=9101;
+ const rnd=()=>{seed=(Math.imul(seed,1664525)+1013904223)|0;return(seed>>>0)/4294967296;};
+ const clamp=v=>Math.max(0,Math.min(255,v));
+ // Coarse chroma samples are spread horizontally while luminance stays local.
+ const original=new Uint8ClampedArray(d);
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+  const i=(y*w+x)*4;const lum=.299*original[i]+.587*original[i+1]+.114*original[i+2];
+  const sx=Math.min(w-1,Math.floor(x/chromaStep)*chromaStep),sy=Math.min(h-1,Math.floor(y/Math.max(1,Math.round(chromaStep/3)))*Math.max(1,Math.round(chromaStep/3)));
+  const j=(sy*w+sx)*4,sl=.299*original[j]+.587*original[j+1]+.114*original[j+2];
+  for(let c=0;c<3;c++){const q=1+g*27;const v=lum+(original[i+c]-lum)*(1-smear)+(original[j+c]-sl)*smear;d[i+c]=clamp(Math.round(v/q)*q);}
+ }
+ // Uneven 8x8 luminance steps and border ringing evoke block-based codecs.
+ if(blockStrength>0)for(let by=0;by<h;by+=blockStep)for(let bx=0;bx<w;bx+=blockStep){
+  let sum=0,count=0;for(let y=by;y<Math.min(h,by+8);y++)for(let x=bx;x<Math.min(w,bx+8);x++){const i=(y*w+x)*4;sum+=(d[i]+d[i+1]+d[i+2])/3;count++;}
+  const avg=sum/count,offset=(rnd()-.5)*blockStrength*38;
+  for(let y=by;y<Math.min(h,by+8);y++)for(let x=bx;x<Math.min(w,bx+8);x++){const i=(y*w+x)*4;const l=(d[i]+d[i+1]+d[i+2])/3;const shift=(avg-l)*blockStrength*.62+offset+((x===bx||y===by)?blockStrength*10:0);for(let c=0;c<3;c++)d[i+c]=clamp(d[i+c]+shift);}
+ }
+ wc.putImageData(image,0,0);
+ const radius=Math.round(blur/100*7+g*1.5);
+ if(radius>0){const temp=document.createElement('canvas');temp.width=Math.max(2,Math.round(w/(1+radius)));temp.height=Math.max(2,Math.round(h/(1+radius)));temp.getContext('2d').drawImage(work,0,0,temp.width,temp.height);wc.imageSmoothingEnabled=true;wc.clearRect(0,0,w,h);wc.drawImage(temp,0,0,w,h);}
+ if(noise>0||generations>0){image=wc.getImageData(0,0,w,h);d=image.data;const strength=noise/100*75+g*9;for(let i=0;i<d.length;i+=4){const n=(rnd()-.5)*strength;d[i]=clamp(d[i]+n);d[i+1]=clamp(d[i+1]+n);d[i+2]=clamp(d[i+2]+n);}wc.putImageData(image,0,0);}
+ ctx.clearRect(0,0,w,h);ctx.drawImage(work,0,0);
+}
+
+// Every generation encodes the preceding decoded JPEG, using the browser codec.
+async function recompressJPEG(source, width, height, options, cancelled=()=>false, progress=()=>{}) {
+ const work=document.createElement('canvas');work.width=width;work.height=height;
+ const ctx=work.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,width,height);ctx.drawImage(source,0,0,width,height);
+ const started=performance.now();let bytes=0;
+ for(let i=0;i<options.generations;i++){
+  if(cancelled())return null;
+  const blob=await new Promise((resolve,reject)=>work.toBlob(b=>b?resolve(b):reject(Error('Falha ao codificar JPEG.')),'image/jpeg',options.quality/100));
+  if(blob.type!=='image/jpeg')throw Error('Este navegador não forneceu JPEG.');
+  const url=URL.createObjectURL(blob);const image=new Image();
+  try{await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(Error('Falha ao decodificar JPEG.'));image.src=url;});if(cancelled())return null;ctx.drawImage(image,0,0,width,height);bytes=blob.size;progress(i+1);}finally{URL.revokeObjectURL(url);}
+ }
+ return {canvas:work,bytes,ms:Math.round(performance.now()-started)};
+}
+
+// A deliberately uneven color drawing. No recognition model or remote processing.
+function drawChildlike(source, canvas, amount = 32) {
+ const w=canvas.width,h=canvas.height,ctx=canvas.getContext('2d');
+ const s=document.createElement('canvas');s.width=60;s.height=Math.max(2,Math.round(60*h/w));
+ const sc=s.getContext('2d',{willReadFrequently:true});sc.drawImage(source,0,0,s.width,s.height);
+ const d=sc.getImageData(0,0,s.width,s.height).data;
+ let seed=281;const rnd=()=>{seed=(Math.imul(seed,1664525)+1013904223)|0;return(seed>>>0)/4294967296;};
+ const wild=amount/64;
+ const color=(x,y)=>{let i=(Math.max(0,Math.min(s.height-1,Math.round(y/h*s.height)))*s.width+Math.max(0,Math.min(s.width-1,Math.round(x/w*s.width))))*4;let r=d[i],g=d[i+1],b=d[i+2];const mean=(r+g+b)/3;return [r,g,b].map(v=>Math.max(15,Math.min(250,Math.round(mean+(v-mean)*1.9+15))));};
+ const warp=(x,y)=>[x+Math.sin(y/h*6.3+x/w*2)*w*.085*wild,y+Math.sin(x/w*7-y/h*2)*h*.12*wild];
+ ctx.fillStyle='#fffaf0';ctx.fillRect(0,0,w,h);ctx.lineJoin='round';ctx.lineCap='round';
+ const step=Math.max(w,h)/(14-wild*5);
+ for(let y=-step/2;y<h+step;y+=step*.7){for(let x=-step/2;x<w+step;x+=step*.8){
+  const rgb=color(x,y),[cx,cy]=warp(x+(rnd()-.5)*step*.9,y+(rnd()-.5)*step*.8),rx=step*(.65+rnd()*(.7+wild)),ry=step*(.5+rnd()*(.8+wild));
+  const points=[];for(let k=0;k<8;k++){const a=k*Math.PI/4;points.push([cx+Math.cos(a)*rx*(.65+rnd()*.55),cy+Math.sin(a)*ry*(.6+rnd()*.6)]);}
+  ctx.beginPath();ctx.moveTo(points[0][0],points[0][1]);points.forEach((p,k)=>{const n=points[(k+1)%points.length];ctx.quadraticCurveTo(p[0],p[1],(p[0]+n[0])/2,(p[1]+n[1])/2);});ctx.closePath();
+  ctx.fillStyle=`rgba(${rgb.join(',')},.83)`;ctx.fill();
+  // Crooked crayon loops, a little outside the colored shape.
+  ctx.strokeStyle=`rgba(${rgb.map(v=>Math.max(0,v-65)).join(',')},.65)`;ctx.lineWidth=2.8+rnd()*4;
+  ctx.beginPath();points.forEach((p,k)=>{const xx=p[0]+(rnd()-.3)*step*.22,yy=p[1]+(rnd()-.5)*step*.3;k?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);});ctx.closePath();ctx.stroke();
+  for(let k=0;k<5;k++){const yy=cy+(rnd()-.5)*ry*1.8;ctx.strokeStyle=`rgba(${rgb.map(v=>Math.max(0,v-35)).join(',')},.35)`;ctx.lineWidth=.8+rnd()*2;ctx.beginPath();ctx.moveTo(cx-rx*.6,yy);ctx.quadraticCurveTo(cx,yy+(rnd()-.5)*ry,cx+rx*.7,yy+(rnd()-.5)*ry*.6);ctx.stroke();}
+ }}
+ // A few broken, wandering outlines keep the source legible without precise tracing.
+ ctx.strokeStyle='rgba(72,40,120,.4)';ctx.lineWidth=3;
+ const lum=(x,y)=>{const c=color(x,y);return(c[0]+c[1]+c[2])/3;};
+ for(let y=step;y<h;y+=step*.7)for(let x=step;x<w;x+=step*.7){if(Math.abs(lum(x-step*.4,y)-lum(x+step*.4,y))+Math.abs(lum(x,y-step*.4)-lum(x,y+step*.4))<85||rnd()<.5)continue;const [cx,cy]=warp(x,y);ctx.beginPath();ctx.moveTo(cx-step*.4,cy-step*.5);ctx.lineTo(cx+(rnd()-.5)*step,cy);ctx.lineTo(cx+step*.5,cy+step*(rnd()-.5));ctx.stroke();}
+}
+
+// Deterministic graphite-like strokes, entirely on the device.
+function drawScribble(source, canvas, amount = 32) {
+    const w = canvas.width, h = canvas.height;
+    const sample = document.createElement('canvas');
+    sample.width = Math.max(2, Math.round(w / 2)); sample.height = Math.max(2, Math.round(h / 2));
+    const sc = sample.getContext('2d', {willReadFrequently:true});
+    sc.drawImage(source, 0, 0, sample.width, sample.height);
+    const sw = sample.width, sh = sample.height, data = sc.getImageData(0, 0, sw, sh).data;
+    const lum = (x, y) => { const i=(Math.max(0,Math.min(sh-1,Math.round(y)))*sw+Math.max(0,Math.min(sw-1,Math.round(x))))*4; return (data[i]*.299+data[i+1]*.587+data[i+2]*.114)/255; };
+    let seed = 1937;
+    const random = () => {seed=(Math.imul(seed,1664525)+1013904223)|0;return (seed>>>0)/4294967296;};
+    const ctx=canvas.getContext('2d');
+    ctx.fillStyle='#f7f3e9';ctx.fillRect(0,0,w,h);ctx.lineCap='round';
+    // A little paper grain, then sparse irregular hatching in the dark areas.
+    ctx.fillStyle='rgba(90,72,50,.045)';
+    for(let i=0;i<w*h/75;i++) ctx.fillRect(random()*w,random()*h,1,1);
+    const rough=amount/64;
+    const step=5+rough*4;
+    const stroke=(x,y,length,angle,dark,heavy=false)=>{
+        const dx=Math.cos(angle),dy=Math.sin(angle),wiggle=1.1+rough*3;
+        ctx.lineWidth=heavy ? .8+random()*.7 : .4+random()*.65;
+        ctx.strokeStyle=`rgba(43,39,36,${Math.min(.72,(heavy?.24:.09)+dark*.28)})`;
+        ctx.beginPath();ctx.moveTo(x-dx*length/2,y-dy*length/2);
+        for(let k=1;k<=4;k++) {const f=k/4-.5;ctx.lineTo(x+dx*length*f+(random()-.5)*wiggle,y+dy*length*f+(random()-.5)*wiggle);}
+        ctx.stroke();
+    };
+    for(let y=0;y<h;y+=step) for(let x=0;x<w;x+=step) {
+        const px=x+(random()-.5)*step,py=y+(random()-.5)*step;
+        const sx=px*sw/w,sy=py*sh/h;
+        const darkness=1-lum(sx,sy);
+        const gx=lum(sx+1,sy)-lum(sx-1,sy),gy=lum(sx,sy+1)-lum(sx,sy-1);
+        const edge=Math.hypot(gx,gy);
+        const len=7+rough*23+random()*10;
+        if(darkness>.15 && random()<darkness*.95) {
+            const angle=-.9+(random()-.5)*(rough*1.6+.25);
+            stroke(px,py,len,angle,darkness);
+            if(darkness>.48) stroke(px+random()*4,py+random()*4,len*.85,angle+1.65,darkness);
+            if(darkness>.73) stroke(px,py,len*.7,angle+.6,darkness);
+        }
+        if(edge>.09) {
+            const angle=Math.atan2(gy,gx)+Math.PI/2;
+            stroke(px,py,6+rough*12+random()*8,angle,darkness,true);
+            if(random()<.55) stroke(px+2+random()*3,py-2,10+rough*8,angle+.12,darkness,true);
+        }
+    }
+}
+
+const $=id=>document.getElementById(id),v=$('video'),c=$('out'),t=$('tiny'),ctx=c.getContext('2d'),tc=t.getContext('2d');
+let stream=null,source=null,facing='environment',palette='cor',raf=0,mode='circulacao',jpegJob=0,loopTimer=0,eraseTimer=0,processing=false,pendingPhoto=false;
+const adaptive={side:320,interval:200,fast:0,frames:0,lastMs:0};
+function adapt(ms){adaptive.lastMs=ms;const levels=[80,120,160,240,320,480,640];let i=levels.indexOf(adaptive.side);if(ms>180){adaptive.side=levels[Math.max(0,i-1)];adaptive.fast=0;}else if(ms<70){if(++adaptive.fast>=8){adaptive.side=levels[Math.min(levels.length-1,i+1)];adaptive.fast=0;}}else adaptive.fast=0;adaptive.interval=Math.min(4000,Math.max(500,Math.ceil(ms*1.35)));}
+function erase(){clearTimeout(eraseTimer);ctx.clearRect(0,0,c.width,c.height);}
+function stop(){jpegJob++;clearTimeout(loopTimer);clearTimeout(eraseTimer);cancelAnimationFrame(raf);processing=false;if(stream)stream.getTracks().forEach(track=>track.stop());stream=null;v.srcObject=null;source=null;erase();$('save').hidden=false;}
+function schedule(ms=0){clearTimeout(loopTimer);if(stream&&!document.hidden)loopTimer=setTimeout(draw,ms);}
+function options(){return Object.fromEntries(['quality','generations','blocks','chroma','blur','noise','pixels'].map(k=>[k,+$('loss-'+k).value]));}
+async function draw(){
+ if(processing||!source||document.hidden)return;
+ const live=!!stream,job=jpegJob,src=source,w=src.videoWidth||src.naturalWidth,h=src.videoHeight||src.naturalHeight;
+ if(!w||!h){schedule(100);return;}
+ processing=true;$('save').disabled=true;const started=performance.now();const max=live?adaptive.side:720,scale=Math.min(1,max/Math.max(w,h)),width=Math.max(2,Math.round(w*scale)),height=Math.max(2,Math.round(h*scale));
+ // Take one snapshot. No frame queue and no reuse of an earlier camera frame.
+ const snap=document.createElement('canvas');snap.width=width;snap.height=height;snap.getContext('2d').drawImage(src,0,0,width,height);
+ try{
+  let result=snap,info=null;const frameOptions=options(),frameMode=mode;
+  if(frameMode==='circulacao'){info=await recompressJPEG(snap,width,height,frameOptions,()=>job!==jpegJob);if(!info||job!==jpegJob)return;result=info.canvas;}
+  if(job!==jpegJob)return;
+  clearTimeout(eraseTimer);c.width=width;c.height=height;
+  if(frameMode==='circulacao'){const o=frameOptions;if(o.blocks||o.chroma||o.blur||o.noise||o.pixels)drawAddedArtifacts(result,c,{...o,generations:0});else ctx.drawImage(result,0,0);}
+  else if(frameMode==='infantil')drawChildlike(result,c,+$('distort').value);
+  else if(frameMode==='rabisco')drawScribble(result,c,+$('rough').value);
+  else{const n=+$('pixel').value;t.width=Math.max(2,Math.round(width/n));t.height=Math.max(2,Math.round(height/n));tc.filter=palette==='pb'?'grayscale(1)':palette==='verde'?'grayscale(1) sepia(1) hue-rotate(55deg) saturate(4)':'none';tc.drawImage(result,0,0,t.width,t.height);if(palette==='oito'){const d=tc.getImageData(0,0,t.width,t.height);for(let i=0;i<d.data.length;i+=4)for(let j=0;j<3;j++)d.data[i+j]=Math.round(d.data[i+j]/85)*85;tc.putImageData(d,0,0);}ctx.imageSmoothingEnabled=false;ctx.drawImage(t,0,0,width,height);}
+  if(result!==snap){result.width=1;result.height=1;}const elapsed=performance.now()-started;
+  if(live){adapt(elapsed);adaptive.frames++;$('jpeg-status').textContent=`Ao vivo: ${width} × ${height} px · ${Math.round(elapsed)} ms por sequência · próximo intervalo ${adaptive.interval} ms. A imagem desaparece em 160 ms.`;eraseTimer=setTimeout(erase,160);}
+  else $('jpeg-status').textContent=info?`${options().generations} gerações JPEG em ${Math.round(elapsed)} ms.`:'Foto processada';
+ }catch(e){$('jpeg-status').textContent='Não consegui processar: '+e.message;if(live){adaptive.side=80;adaptive.interval=2000;}}
+ finally{processing=false;$('save').disabled=false;snap.width=1;snap.height=1;if(live&&job===jpegJob)schedule(adaptive.interval);else if(pendingPhoto&&!stream){pendingPhoto=false;draw();}}
+}
+async function start(){stop();const session=jpegJob;$('error').textContent='Ligando…';try{if(!navigator.mediaDevices?.getUserMedia)throw Error('A câmera precisa de HTTPS.');const acquired=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:640},height:{ideal:480},frameRate:{ideal:12,max:15}},audio:false});if(session!==jpegJob){acquired.getTracks().forEach(track=>track.stop());return;}stream=acquired;v.srcObject=stream;await v.play();if(session!==jpegJob)return;source=v;adaptive.side=320;adaptive.interval=200;adaptive.fast=0;adaptive.frames=0;$('save').hidden=true;$('error').textContent='Câmera ligada. Sem gravação, envio ou histórico pelo protótipo.';draw();}catch(e){if(session!==jpegJob)return;stop();$('error').textContent='Não foi possível ligar a câmera. Abra a página diretamente em HTTPS no Safari ou Chrome e permita a câmera. Você pode testar com uma foto. '+e.message;}}
+function requestDraw(){if(!stream){jpegJob++;if(processing)pendingPhoto=true;else draw();}}
+['circulate','child','scribble','pixels'].forEach((id,i)=>$(id).onclick=()=>{mode=['circulacao','infantil','rabisco','pixel'][i];modeControls();requestDraw();});
+['quality','generations','blocks','chroma','blur','noise','pixels'].forEach(k=>$('loss-'+k).oninput=()=>{$('value-'+k).value=$('loss-'+k).value;requestDraw();});
+$('reset-loss').onclick=()=>{['generations','blocks','chroma','blur','noise','pixels'].forEach(k=>{$('loss-'+k).value=0;$('value-'+k).value=0;});requestDraw();};
+$('distort').oninput=$('rough').oninput=requestDraw;$('pixel').oninput=()=>{$('size').value=$('pixel').value;requestDraw();};
+$('start').onclick=start;$('switch').onclick=()=>{facing=facing==='environment'?'user':'environment';start();};$('stop').onclick=()=>{stop();$('error').textContent='Câmera desligada. Imagem descartada.';};
+document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{palette=b.dataset.p;document.querySelectorAll('[data-p]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));requestDraw();});
+$('photo').onchange=e=>{const f=e.target.files[0];if(!f)return;stop();const url=URL.createObjectURL(f),im=new Image();im.onload=()=>{source=im;URL.revokeObjectURL(url);$('error').textContent='Foto local. A efemeridade automática vale para a câmera.';draw();};im.onerror=()=>{URL.revokeObjectURL(url);$('error').textContent='Tente JPEG ou PNG.';};im.src=url;};
+$('save').onclick=()=>{if(!source||stream)return;const win=window.open('','_blank');c.toBlob(blob=>{if(!blob){win?.close();return;}const url=URL.createObjectURL(blob);if(win)win.location.href=url;setTimeout(()=>URL.revokeObjectURL(url),60000);});};
+window.addEventListener('pagehide',stop);document.addEventListener('visibilitychange',()=>{if(document.hidden){stop();$('error').textContent='Câmera desligada ao sair da página. Toque em Ligar para voltar.';}});
+function modeControls(){const ids={circulacao:'circulate',infantil:'child',rabisco:'scribble',pixel:'pixels'};['circulate','child','scribble','pixels'].forEach(k=>$(k).setAttribute('aria-pressed',String(k===ids[mode])));$('circulation-controls').hidden=mode!=='circulacao';$('distort').parentElement.hidden=mode!=='infantil';$('rough').parentElement.hidden=mode!=='rabisco';$('pixel').parentElement.hidden=mode!=='pixel';$('palettes').hidden=mode!=='pixel';c.setAttribute('aria-label',mode==='circulacao'?'Imagem recomprimida em JPEG':'Imagem degradada');}modeControls();
+</script></html>
